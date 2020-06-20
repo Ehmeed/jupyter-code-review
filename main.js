@@ -3,23 +3,16 @@ define([
         'base/js/dialog',
         'base/js/events',
         'base/js/namespace',
-        'notebook/js/celltoolbar',
-        'notebook/js/codecell',
-        'notebook/js/cell',
     ], function (
     $,
     dialog,
     events,
     Jupyter,
-    celltoolbar,
-    codecell,
-    cell
     ) {
         "use strict";
         const gutterRed = `CodeMirror-crgutter-red`;
         const gutterGreen = `CodeMirror-crgutter-green`;
         const crGutters = [gutterRed, gutterGreen];
-        const Cell = cell.Cell
 
         const setGutter = (cell, gutter) => {
             const gutters = cell.code_mirror.getOption('gutters').slice().filter((e) => !crGutters.includes(e));
@@ -29,13 +22,18 @@ define([
 
         const isNotEditable = (cell) => cell.metadata.crIsEdited || cell.metadata.crIsSuggestion;
 
-        const setSuggestion = (cell) => {
-            cell.metadata.crIsSugestion = true;
-            setGutter(cell, gutterGreen);
-        }
         const setEdited = (cell) => {
+            const id = randomId()
             cell.metadata.crIsEdited = true;
+            cell.metadata.crId = id;
             setGutter(cell, gutterRed);
+            return id;
+        }
+
+        const setSuggestion = (cell, id) => {
+            cell.metadata.crIsSugestion = true;
+            cell.metadata.crId = id;
+            setGutter(cell, gutterGreen);
         }
 
         const suggestEdit = () => {
@@ -44,21 +42,14 @@ define([
                 alert("Some of selected cells are already reviewed");
                 return;
             }
-            selectedCells.map(setEdited)
+            const ids = selectedCells.map(setEdited);
             Jupyter.notebook.copy_cell();
             Jupyter.notebook.paste_cell_below();
-            selectedCells.forEach((_) => {
-                setSuggestion(Jupyter.notebook.get_selected_cell());
+            ids.reverse().forEach((id) => {
+                setSuggestion(Jupyter.notebook.get_selected_cell(), id);
                 Jupyter.notebook.select_prev();
             });
             Jupyter.notebook.select_next();
-        };
-
-
-        const loadCss = function (style) {
-            const el = document.createElement("style")
-            el.innerHTML = style
-            document.getElementsByTagName("head")[0].appendChild(el);
         };
 
         const loadIPythonExtension = () => {
@@ -74,7 +65,32 @@ define([
             const suggestEditActionName =
                 Jupyter.notebook.keyboard_manager.actions.register(suggestEditAction, 'suggest-edit', 'code-review');
             Jupyter.toolbar.add_buttons_group([suggestEditActionName]);
+
+            events.on("delete.Cell", () => {
+                alert("ahah");
+            });
+            events.on("paste.Cell", () => {
+                alert("ahah");
+            });
+            events.on("delete.Cell", () => {
+                alert("ahah");
+            });
+            events.on("kernel_ready.Kernel", () => {
+                Jupyter.notebook.get_cells().forEach((cell, idx, cells) => {
+                    if (cell.metadata.crIsEdited) setGutter(cell, gutterRed);
+                    else if (cell.metadata.crIsSugestion) setGutter(cell, gutterGreen);
+                });
+            });
+
         };
+
+        const loadCss = function (style) {
+            const el = document.createElement("style")
+            el.innerHTML = style
+            document.getElementsByTagName("head")[0].appendChild(el);
+        };
+
+        const randomId = () => '_' + Math.random().toString(36).substr(2, 9);
 
         return {
             load_ipython_extension: loadIPythonExtension
